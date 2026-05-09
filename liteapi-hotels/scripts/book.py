@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Confirm a hotel booking. Billing via LiteAPI account (ACC_CREDIT_CARD)."""
 import argparse, json, os, sys, urllib.request, urllib.error
 
 KEY = os.environ.get("LITEAPI_KEY", "")
@@ -14,26 +15,22 @@ def main():
     p.add_argument("--first-name", required=True)
     p.add_argument("--last-name", required=True)
     p.add_argument("--email", required=True)
-    p.add_argument("--card-number", required=True)
-    p.add_argument("--card-exp-month", required=True)
-    p.add_argument("--card-exp-year", required=True)
-    p.add_argument("--card-cvc", required=True)
     args = p.parse_args()
 
     payload = {
         "prebookId": args.prebook_id,
-        "holder": {"firstName": args.first_name, "lastName": args.last_name, "email": args.email},
-        "payment": {
-            "method": "CREDIT_CARD",
-            "card": {
-                "number": args.card_number,
-                "expMonth": args.card_exp_month,
-                "expYear": args.card_exp_year,
-                "cvc": args.card_cvc,
-                "holderName": f"{args.first_name} {args.last_name}",
-            }
+        "holder": {
+            "firstName": args.first_name,
+            "lastName": args.last_name,
+            "email": args.email,
         },
-        "guests": [{"occupancyNumber": 1, "firstName": args.first_name, "lastName": args.last_name, "email": args.email}],
+        "payment": {"method": "ACC_CREDIT_CARD"},
+        "guests": [{
+            "occupancyNumber": 1,
+            "firstName": args.first_name,
+            "lastName": args.last_name,
+            "email": args.email,
+        }],
     }
     body = json.dumps(payload).encode()
     req = urllib.request.Request(f"{BOOK}/rates/book", data=body, headers=HDR, method="POST")

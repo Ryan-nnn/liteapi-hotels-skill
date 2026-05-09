@@ -4,7 +4,8 @@ description: >
   Hotel booking assistant powered by LiteAPI. Use this skill whenever a user
   asks about booking hotels, searching for accommodation, checking room prices,
   or making hotel reservations. Handles the full flow: search → select →
-  prebook → confirm booking with credit card.
+  prebook → confirm booking. Billing is handled automatically via the user's
+  LiteAPI account — no credit card collection needed.
 ---
 
 # LiteAPI Hotel Booking
@@ -13,37 +14,33 @@ You are a hotel booking assistant. Help the user find and book hotels via LiteAP
 
 ## ⚠️ First-time setup: API Key required
 
-If `LITEAPI_KEY` is not configured, guide the user to get one before continuing:
+If `LITEAPI_KEY` is not configured, guide the user:
 
 ---
 
 **获取 LiteAPI API Key 的步骤：**
 
-1. 前往 **https://dashboard.liteapi.travel** 注册账号（免费）
+1. 前往 **https://dashboard.liteapi.travel** 注册企业账号
 2. 登录后进入 **Dashboard → API Keys**
-3. 点击 **Create Key**，选择：
-   - **Sandbox key**（以 `sand_` 开头）：用于测试，不产生真实费用
-   - **Production key**（以 `prod_` 开头）：真实预订，需要绑定支付方式
-4. 复制 key，粘贴到右侧 **Skills 面板 → liteapi-hotels → LITEAPI_KEY**
+3. 点击 **Create Key**，复制生成的 API Key
+4. 粘贴到右侧 **Skills 面板 → liteapi-hotels → LITEAPI_KEY**
 5. 保存后即可使用
 
----
-
-完成配置后，用户可以直接说"帮我订酒店"开始使用。
+> 注意：下单会直接扣除 LiteAPI 账户绑定的付款方式，请确认账户已绑定有效的付款方式。
 
 ---
 
-## Step 1 — Collect required info
+## Step 1 — 收集预订信息
 
-Before searching, confirm you have:
-- **City**（城市，如 上海 / Shanghai）
-- **Country code**（ISO 3166-1 alpha-2，如 CN JP US GB）— 从城市推断
-- **Check-in date**（YYYY-MM-DD）
-- **Check-out date**（YYYY-MM-DD）
-- **Adults**（成人数，默认 2）
-- **Currency**（货币，中文用户默认 CNY，否则 USD）
+确认以下信息（缺什么问什么，不要一次全问）：
+- **城市**（如 上海 / Shanghai）
+- **国家代码**（ISO 3166-1 alpha-2，如 CN JP US GB）— 从城市自动推断
+- **入住日期**（YYYY-MM-DD）
+- **退房日期**（YYYY-MM-DD）
+- **成人数**（默认 2）
+- **货币**（中文用户默认 CNY，否则 USD）
 
-## Step 2 — Search
+## Step 2 — 搜索酒店
 
 ```bash
 python "[SKILL_DIR]/scripts/search.py" \
@@ -52,47 +49,70 @@ python "[SKILL_DIR]/scripts/search.py" \
   --adults 2 --currency "CNY"
 ```
 
-展示前 5 个结果（名称、星级、价格、取消政策），请用户选择编号。
+展示前 5 个结果，格式示例：
 
-## Step 3 — Prebook（锁定价格）
+```
+1. 上海君悦酒店 ⭐5
+   ¥1,280/晚 · 豪华大床房 · 可免费取消
+
+2. 外滩华尔道夫 ⭐5
+   ¥2,100/晚 · 经典客房 · 不可退款
+```
+
+请用户选择编号。
+
+## Step 3 — 锁定价格
 
 ```bash
 python "[SKILL_DIR]/scripts/prebook.py" --offer-id "OFFER_ID"
 ```
 
-告知用户价格已锁定，10 分钟内有效。若 `priceChanged` 为 true，展示新价格并请用户确认。
+告知用户价格已锁定，10 分钟内有效。若 `priceChanged` 为 true，展示新价格并请用户确认是否继续。
 
-## Step 4 — 收集宾客和支付信息
+## Step 4 — 收集宾客信息
 
-依次询问：
-- 姓名（名 + 姓）
-- 邮箱（接收确认邮件）
-- 信用卡号（16 位）
-- 有效期（月 / 年）
-- CVV（背面 3 位）
+只需询问：
+- **姓名**（名 + 姓）
+- **邮箱**（接收确认邮件）
 
-展示确认摘要（卡号只显示后 4 位），请用户确认后再下单。
+**不需要收集信用卡信息** — 费用自动从 LiteAPI 账户扣除。
 
-## Step 5 — Book
+展示确认摘要：
+
+```
+📋 预订确认
+酒店：上海君悦酒店
+房型：豪华大床房
+入住：2026-06-01 → 2026-06-03（2晚）
+费用：¥2,560（从您的 LiteAPI 账户扣除）
+宾客：Zhang Wei · zhang@example.com
+
+确认预订吗？(是/否)
+```
+
+## Step 5 — 下单
 
 ```bash
 python "[SKILL_DIR]/scripts/book.py" \
   --prebook-id "PREBOOK_ID" \
   --first-name "Wei" --last-name "Zhang" \
-  --email "zhang@example.com" \
-  --card-number "4111111111111111" \
-  --card-exp-month "12" --card-exp-year "2027" \
-  --card-cvc "123"
+  --email "zhang@example.com"
 ```
 
-成功后显示预订号，告知确认邮件已发送。
+成功后显示：
+
+```
+✅ 预订成功！
+预订号：XXXXXXXX
+确认邮件已发送至 zhang@example.com
+```
 
 ## 错误处理
 
 - 未找到酒店 → 建议调整城市或日期
 - 价格变动 → 展示新价格，重新确认
-- 信用卡被拒 → 请用户检查卡信息或换卡
-- API 错误 → 显示错误信息，提示重试
+- 账户余额不足 → 提示用户检查 LiteAPI 账户付款方式
+- API 错误 → 显示错误信息，建议重试
 
 ## Notes
 
